@@ -231,8 +231,13 @@ export async function startLogin(options: {
   return { url: `${origin}/${secret}`, result };
 }
 
-async function finishLogin(data: any, store: SessionStore, fetcher: Fetch) {
-  const idToken = requireToken(cleanToken(data.idToken));
+export async function saveVerifiedSession(
+  data: { idToken: unknown; refreshToken: unknown },
+  store: SessionStore,
+  fetcher: Fetch = fetch,
+  storage: "macos-keychain" | "file" = "file",
+): Promise<{ accountId: string; email: string | null; storage: string; expiresAt: string | null }> {
+  const idToken = requireToken(cleanToken(typeof data.idToken === "string" ? data.idToken : undefined));
   if (
     typeof data.refreshToken !== "string" ||
     !data.refreshToken ||
@@ -256,9 +261,52 @@ async function finishLogin(data: any, store: SessionStore, fetcher: Fetch) {
   return {
     accountId: account.id,
     email: account.email,
-    storage: "macos-keychain",
-    expiresAt: tokenStatus(idToken, "keychain").expiresAt,
+    storage,
+    expiresAt: tokenStatus(idToken, storage === "file" ? "file" : "keychain").expiresAt,
   };
+}
+
+export async function loginWithPassword(email: string, password: string, store: SessionStore, fetcher: Fetch = fetch) {
+  const trimmed = email.trim();
+  if (!trimmed || trimmed.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed))
+    throw new CliError("AUTH_INPUT_INVALID", "Invalid email address.", "Enter the email used in Fitia.", 3);
+  if (!password || password.length > 256)
+    throw new CliError("AUTH_INPUT_INVALID", "Invalid password.", "Enter the Fitia account password.", 3);
+  let response: Response;
+  try {
+    response = await fetcher(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed, password, returnSecureToken: true }),
+        redirect: "error",
+        signal: AbortSignal.timeout(15000),
+      },
+    );
+  } catch {
+    throw new CliError(
+      "AUTH_LOGIN_FAILED",
+      "Could not sign in with email and password.",
+      "Check your connection and try again.",
+      3,
+    );
+  }
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new CliError(
+      "AUTH_LOGIN_REJECTED",
+      "The email or password was not accepted.",
+      "Use the same Fitia credentials as in the app, or sign in with Google.",
+      3,
+    );
+  }
+  const result = await smallJson(response);
+  return saveVerifiedSession({ idToken: result.idToken, refreshToken: result.refreshToken }, store, fetcher, "file");
+}
+
+async function finishLogin(data: any, store: SessionStore, fetcher: Fetch) {
+  return saveVerifiedSession(data, store, fetcher, "macos-keychain");
 }
 
 export function openLogin(url: string) {

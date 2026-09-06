@@ -1,0 +1,33 @@
+services:
+  fitia-mcp:
+    build: .
+    image: fitia-mcp:local
+    restart: unless-stopped
+    # Portal + Streamable HTTP MCP share this port. Keep it on LAN.
+    ports:
+      - "8080:8080"
+    volumes:
+      # Persists session.json (idToken + refreshToken). Treat as credentials.
+      - fitia-data:/app/data
+    environment:
+      FITIA_DATA_DIR: /app/data
+      FITIA_PORT: "8080"
+      FITIA_HOST: 0.0.0.0
+      FITIA_TRANSPORT: http
+      FITIA_TIMEOUT_MS: "15000"
+      FITIA_MCP_TOKEN: ${FITIA_MCP_TOKEN:?set FITIA_MCP_TOKEN in .env}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  fitia-data:

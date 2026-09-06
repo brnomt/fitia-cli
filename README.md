@@ -30,7 +30,7 @@ The executables are `fitia` and `fitia-mcp`. The workspace packages are private 
 
 ## MCP server
 
-The MCP adapter exposes the account, profile, Premium, food, diary, summary, suggestion, logging, refresh, and removal operations with Zod-derived JSON Schemas. It supports a local stdio server and a separately deployed Streamable HTTP server; see [the remote deployment guide](docs/remote-mcp.md) for that service's trust boundary.
+The MCP adapter exposes the account, profile, Premium, food, diary, summary, suggestion, logging, refresh, and removal operations with Zod-derived JSON Schemas. It supports a local stdio server, a separately deployed Streamable HTTP server ([remote deployment](docs/remote-mcp.md)), and a single-user Docker appliance with a login portal ([self-host](docs/self-host.md)).
 
 ```sh
 cd apps/mcp && bun link
@@ -61,6 +61,7 @@ On macOS, omit `FITIA_TOKEN` to use the renewable Keychain session created by `f
 | `packages/core` | Fitia clients, validation, credentials, diary safety, and the Effect service layer. |
 | `apps/cli` | `@effect/cli` runtime adapter and the versioned human/JSON command contract. |
 | `apps/mcp` | Local stdio and remote HTTP MCP adapters with Zod-validated tool definitions. |
+| `apps/selfhost` | Single-user Docker appliance: login portal, file session, Streamable HTTP MCP. |
 | `dev` | Unshipped device, capture, and protocol-discovery utilities. |
 
 The adapters do not implement their own Fitia requests. New capabilities belong in `packages/core` first, then receive transport-specific input and output presentation.

@@ -4,6 +4,9 @@
   "description": "MCP server for an existing Fitia account",
   "type": "module",
   "private": true,
+  "exports": {
+    "./server": "./src/server.ts"
+  },
   "bin": {
     "fitia-mcp": "dist/fitia-mcp.js",
     "fitia-mcp-link": "dist/fitia-mcp-link.js"

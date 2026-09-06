@@ -1,0 +1,25 @@
+{
+  "name": "@fitia/selfhost",
+  "version": "0.7.0",
+  "description": "Self-hosted Fitia MCP appliance with a local auth portal",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "fitia-selfhost": "dist/fitia-selfhost.js"
+  },
+  "engines": {
+    "bun": ">=1.3.0"
+  },
+  "scripts": {
+    "build": "rm -rf dist && bun build src/index.ts --target=bun --outdir=dist --entry-naming=fitia-selfhost.js --sourcemap=external && chmod +x dist/fitia-selfhost.js",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@fitia/core": "workspace:*",
+    "@fitia/mcp": "workspace:*",
+    "@modelcontextprotocol/hono": "2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "hono": "^4.13.5"
+  }
+}

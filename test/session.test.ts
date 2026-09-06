@@ -1,6 +1,13 @@
 import { expect, test } from "bun:test";
 import { connect, type Socket } from "node:net";
-import { type Fetch, type SavedSession, type SessionStore, sessionToken, startLogin } from "@fitia/core";
+import {
+  type Fetch,
+  loginWithPassword,
+  type SavedSession,
+  type SessionStore,
+  sessionToken,
+  startLogin,
+} from "@fitia/core";
 
 const token = (exp: number) => `e30.${Buffer.from(JSON.stringify({ exp })).toString("base64url")}.sig`;
 function memory(initial?: SavedSession) {
@@ -140,6 +147,50 @@ test("login completes when the callback client disconnects after the session is 
   expect(result).toMatchObject({ accountId: "test-user" });
   expect((await store.read())?.refreshToken).toBe("new-test-refresh");
 });
+test("password login verifies the Fitia profile before saving", async () => {
+  const store = memory();
+  const fetcher: Fetch = async (url, init) => {
+    if (url.includes("accounts:signInWithPassword")) {
+      expect(JSON.parse(String(init.body))).toMatchObject({
+        email: "example@example.invalid",
+        returnSecureToken: true,
+      });
+      return Response.json({ idToken: fresh, refreshToken: "password-refresh" });
+    }
+    return account(url, init);
+  };
+  const result = await loginWithPassword("example@example.invalid", "secret", store, fetcher);
+  expect(result).toMatchObject({ accountId: "test-user", storage: "file", email: "example@example.invalid" });
+  expect((await store.read())?.refreshToken).toBe("password-refresh");
+});
+
+test("password login does not save when Fitia has no profile", async () => {
+  const store = memory();
+  const fetcher: Fetch = async (url) => {
+    if (url.includes("accounts:signInWithPassword"))
+      return Response.json({ idToken: fresh, refreshToken: "password-refresh" });
+    if (url.includes("accounts:lookup"))
+      return Response.json({
+        users: [{ localId: "test-user", email: "example@example.invalid", emailVerified: true }],
+      });
+    if (url.includes("/api/profiles/test-user")) return new Response(null, { status: 404 });
+    throw Error("unexpected URL");
+  };
+  await expect(loginWithPassword("example@example.invalid", "secret", store, fetcher)).rejects.toMatchObject({
+    code: "HTTP_ERROR",
+  });
+  expect(await store.read()).toBeUndefined();
+});
+
+test("password login rejects an invalid email without contacting the network", async () => {
+  const noNetwork: Fetch = async () => {
+    throw Error("unexpected network");
+  };
+  await expect(loginWithPassword("not-an-email", "secret", memory(), noNetwork)).rejects.toMatchObject({
+    code: "AUTH_INPUT_INVALID",
+  });
+});
+
 test("login deadline closes the server without saving a session", async () => {
   const store = memory(),
     login = await startLogin({ waitSeconds: 0.02, store, fetcher: account });

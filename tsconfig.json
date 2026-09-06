@@ -1,4 +1,10 @@
 {
   "files": [],
-  "references": [{ "path": "packages/core" }, { "path": "apps/cli" }, { "path": "apps/mcp" }, { "path": "dev" }]
+  "references": [
+    { "path": "packages/core" },
+    { "path": "apps/cli" },
+    { "path": "apps/mcp" },
+    { "path": "apps/selfhost" },
+    { "path": "dev" }
+  ]
 }

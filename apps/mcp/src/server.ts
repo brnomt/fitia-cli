@@ -1,5 +1,5 @@
 import {
-  type CliError,
+  CliError,
   Fitia,
   makeFitiaTokenLayer,
   mealTypes,
@@ -34,6 +34,7 @@ type ServerOptions = {
   readonly canWrite?: boolean;
   readonly resourceMetadataUrl?: string;
   readonly startLink?: () => Promise<{ readonly code: string; readonly expiresInSeconds: number }>;
+  readonly getCredentials?: () => Promise<{ token: string; uid: string } | undefined>;
 };
 
 const readSecurity = { securitySchemes: [{ type: "oauth2", scopes: ["fitia:read"] }] };
@@ -61,11 +62,45 @@ async function call<A>(
   return { content: [{ type: "text" as const, text: JSON.stringify(result.success) }] };
 }
 
+function errorResult(error: unknown) {
+  const failure =
+    error instanceof CliError
+      ? error
+      : new CliError("SYSTEM_ERROR", "The operation could not complete.", "Check local dependencies and retry.", 5);
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: JSON.stringify({ error: { code: failure.code, message: failure.message, hint: failure.hint } }),
+      },
+    ],
+    isError: true,
+  };
+}
+
 export function createServer(options: ServerOptions = {}) {
-  const layer = makeFitiaTokenLayer(options);
+  const staticLayer = options.getCredentials ? undefined : makeFitiaTokenLayer(options);
   const canWrite = options.canWrite !== false;
   const server = new McpServer({ name: "fitia", version: VERSION });
   const startLink = options.startLink;
+
+  async function resolveLayer() {
+    if (!options.getCredentials) return { ok: true as const, layer: staticLayer!, token: options.token };
+    try {
+      const creds = await options.getCredentials();
+      return {
+        ok: true as const,
+        layer: makeFitiaTokenLayer({
+          token: creds?.token,
+          trustedAccountId: creds?.uid,
+          timeoutMs: options.timeoutMs,
+        }),
+        token: creds?.token,
+      };
+    } catch (error) {
+      return { ok: false as const, error: errorResult(error) };
+    }
+  }
   const linkRequired = async () => {
     try {
       const link = await startLink?.();
@@ -92,11 +127,18 @@ export function createServer(options: ServerOptions = {}) {
       };
     }
   };
-  const read = <A>(operation: (service: typeof Fitia.Service) => Effect.Effect<A, CliError>) =>
-    !options.token && startLink ? linkRequired() : call(layer, operation);
-  const write = <A>(operation: (service: typeof Fitia.Service) => Effect.Effect<A, CliError>) =>
+  const read = async <A>(operation: (service: typeof Fitia.Service) => Effect.Effect<A, CliError>) => {
+    const resolved = await resolveLayer();
+    if (!resolved.ok) return resolved.error;
+    return !resolved.token && startLink ? linkRequired() : call(resolved.layer, operation);
+  };
+  const write = async <A>(operation: (service: typeof Fitia.Service) => Effect.Effect<A, CliError>) =>
     canWrite
-      ? call(layer, operation)
+      ? (async () => {
+          const resolved = await resolveLayer();
+          if (!resolved.ok) return resolved.error;
+          return call(resolved.layer, operation);
+        })()
       : Promise.resolve({
           content: [{ type: "text" as const, text: "insufficient_scope: this tool requires fitia:write" }],
           isError: true,

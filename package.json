@@ -12,13 +12,13 @@
     "bun": ">=1.3.0"
   },
   "scripts": {
-    "build": "bun run --filter @fitia/core build && bun run --filter @fitia/cli build && bun run --filter @fitia/mcp build",
-    "typecheck": "bun run --filter @fitia/core typecheck && bun run --filter @fitia/cli typecheck && bun run --filter @fitia/mcp typecheck && bun x tsc -p dev/tsconfig.json",
+    "build": "bun run --filter @fitia/core build && bun run --filter @fitia/cli build && bun run --filter @fitia/mcp build && bun run --filter @fitia/selfhost build",
+    "typecheck": "bun run --filter @fitia/core typecheck && bun run --filter @fitia/cli typecheck && bun run --filter @fitia/mcp typecheck && bun run --filter @fitia/selfhost typecheck && bun x tsc -p dev/tsconfig.json",
     "test": "bun test",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "check": "bun run lint && bun run typecheck && bun run build && bun run test",
-    "clean": "bun run --filter @fitia/core clean && bun run --filter @fitia/cli clean && bun run --filter @fitia/mcp clean",
+    "clean": "bun run --filter @fitia/core clean && bun run --filter @fitia/cli clean && bun run --filter @fitia/mcp clean && bun run --filter @fitia/selfhost clean",
     "dev:device": "bun dev/device.ts",
     "dev:capture": "bun dev/capture.ts",
     "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && husky || true"

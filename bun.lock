@@ -53,6 +53,20 @@
         "drizzle-kit": "^0.31.10",
       },
     },
+    "apps/selfhost": {
+      "name": "@fitia/selfhost",
+      "version": "0.7.0",
+      "bin": {
+        "fitia-selfhost": "dist/fitia-selfhost.js",
+      },
+      "dependencies": {
+        "@fitia/core": "workspace:*",
+        "@fitia/mcp": "workspace:*",
+        "@modelcontextprotocol/hono": "2.0.0",
+        "@modelcontextprotocol/server": "^2.0.0",
+        "hono": "^4.13.5",
+      },
+    },
     "packages/core": {
       "name": "@fitia/core",
       "version": "0.7.0",
@@ -171,6 +185,8 @@
     "@fitia/core": ["@fitia/core@workspace:packages/core"],
 
     "@fitia/mcp": ["@fitia/mcp@workspace:apps/mcp"],
+
+    "@fitia/selfhost": ["@fitia/selfhost@workspace:apps/selfhost"],
 
     "@img/colour": ["@img/colour@1.1.0", "", {}, "sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ=="],
 
