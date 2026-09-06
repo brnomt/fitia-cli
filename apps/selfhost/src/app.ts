@@ -98,19 +98,44 @@ export function createSelfhostApp(options: SelfhostOptions) {
     else current.count += 1;
   };
 
+  const corsHeaders = (request: Request) => {
+    const origin = request.headers.get("origin");
+    const allowOrigin = origin && origin !== "null" ? origin : "*";
+    return {
+      "Access-Control-Allow-Origin": allowOrigin,
+      Vary: "Origin",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers":
+        "Authorization, Content-Type, Accept, MCP-Protocol-Version, Mcp-Session-Id, X-Fitia-Login",
+      "Access-Control-Expose-Headers": "Mcp-Session-Id, WWW-Authenticate",
+      "Access-Control-Max-Age": "86400",
+    };
+  };
+
   app.use("*", async (context, next) => {
-    const path = new URL(context.req.url).pathname;
-    const method = context.req.method;
-    const publicRoute =
-      path === "/health" || (path === "/" && method === "GET") || (path === "/unlock" && method === "POST");
-    if (!publicRoute) {
-      const denied = requireMcpBearer(context.req.raw, options.mcpToken);
+    const request = context.req.raw;
+    const path = new URL(request.url).pathname;
+    const method = request.method;
+
+    // Preflight CORS never carries credentials and must not be gated.
+    if (method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: { ...corsHeaders(request), "Cache-Control": "no-store" } });
+    }
+
+    const protectedRoute = path === "/mcp" || path === "/auth" || path.startsWith("/auth/");
+    const knownPublic = path === "/" || path === "/health" || path === "/unlock";
+    if (!protectedRoute && !knownPublic) return jsonError("Not found.", 404);
+    if (protectedRoute) {
+      const denied = requireMcpBearer(request, options.mcpToken);
       if (denied) return denied;
     }
     await next();
     context.res.headers.set("Cache-Control", "no-store");
     context.res.headers.set("X-Content-Type-Options", "nosniff");
     context.res.headers.set("Referrer-Policy", "no-referrer");
+    if (path === "/mcp" || path === "/health") {
+      for (const [key, value] of Object.entries(corsHeaders(request))) context.res.headers.set(key, value);
+    }
   });
 
   app.get("/", (context) => {

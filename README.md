@@ -54,6 +54,48 @@ Example host configuration:
 
 On macOS, omit `FITIA_TOKEN` to use the renewable Keychain session created by `fitia auth login`. An explicitly empty `FITIA_TOKEN` disables Keychain lookup. MCP write tools default to a real preview and require `confirm: true` to mutate Fitia. `FITIA_DISABLE_WRITES=1` remains an out-of-band kill switch.
 
+## Self-host (Docker appliance)
+
+This fork does not use macOS Keychain. Instead it exposes a lightweight web portal where you sign in with your Fitia email/password (or Google on localhost). The container stores the resulting Firebase tokens in a Docker volume (`/app/data/session.json`) and refreshes them automatically. No browser cookies, no Keychain, no external auth provider — the session lives and dies with the volume.
+
+**Quick start:**
+
+```sh
+docker build --platform linux/arm64 -t fitia-mcp:local .
+docker compose up -d
+curl -sI http://127.0.0.1:8080/health
+```
+
+Open `http://<host>:8080`, sign in, then point a client at `/mcp`.
+
+**Auth modes** (`FITIA_MCP_TOKEN`):
+
+| Value | Behavior |
+| --- | --- |
+| empty | Open mode — no local bearer check. Use when a fronting proxy (mcp-proxy `authTokens`) already enforces auth. |
+| hex token | Local mode — every route except `GET /health` requires that bearer token. |
+
+> **Warning:** You are responsible for what you expose. In open mode any device that can reach the port can use your Fitia account. Put it behind a proxy with real auth, keep it LAN-only, or set a token. The portal has rate limiting (5 attempts / 15 min) and CSRF protection, but that does not replace a proper network boundary.
+
+**Arcane (Raspberry Pi 5):**
+
+1. Build on a PC: `docker build --platform linux/arm64 -t fitia-mcp:local .`
+2. Save: `docker save fitia-mcp:local | gzip > fitia-mcp-local-arm64.tar.gz`
+3. Upload in Arcane → paste `docker-compose.yml` → deploy
+
+**Behind TBXark mcp-proxy (Poke, Cursor):**
+
+The TBXark mcp-proxy blocks CORS preflight (`OPTIONS`) on its `authTokens` gate. Deploy a Caddy container in front to handle CORS + SSE streaming:
+
+```sh
+# Change TBXark's host port from 19492 to 19494 in Arcane, then:
+UPSTREAM=192.168.1.10:19494 docker compose -f dev/caddy-cors.docker-compose.yml up -d
+```
+
+Verify: `curl -i -X OPTIONS https://mcp.yourdomain.dev/fitia/` → `204` with `access-control-allow-origin`.
+
+See [docs/self-host.md](docs/self-host.md) for the full guide.
+
 ## Architecture
 
 | Workspace | Responsibility |

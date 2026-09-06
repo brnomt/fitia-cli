@@ -1,6 +1,5 @@
 services:
   fitia-mcp:
-    build: .
     image: fitia-mcp:local
     restart: unless-stopped
     # Portal + Streamable HTTP MCP share this port. Keep it on LAN.
@@ -15,7 +14,9 @@ services:
       FITIA_HOST: 0.0.0.0
       FITIA_TRANSPORT: http
       FITIA_TIMEOUT_MS: "15000"
-      FITIA_MCP_TOKEN: ${FITIA_MCP_TOKEN:?set FITIA_MCP_TOKEN in .env}
+      # Empty = open mode (auth enforced by the fronting proxy). Set a value to
+      # require the same bearer token locally.
+      FITIA_MCP_TOKEN: ${FITIA_MCP_TOKEN:-}
     healthcheck:
       test:
         [

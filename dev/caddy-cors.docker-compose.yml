@@ -1,0 +1,32 @@
+services:
+  mcp-cors:
+    image: caddy:alpine
+    restart: unless-stopped
+    ports:
+      - "19492:80"
+    environment:
+      UPSTREAM: "${UPSTREAM:?Set UPSTREAM to the TBXark host:port, e.g. 192.168.1.10:19494}"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        cat > /etc/caddy/Caddyfile << 'CADDYFILE'
+        :80 {
+          @preflight method OPTIONS
+          handle @preflight {
+            header Access-Control-Allow-Origin *
+            header Access-Control-Allow-Methods "GET, POST, OPTIONS"
+            header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, MCP-Protocol-Version, Mcp-Session-Id"
+            header Access-Control-Max-Age "86400"
+            respond 204
+          }
+          handle {
+            header Access-Control-Allow-Origin *
+            header Access-Control-Allow-Methods "GET, POST, OPTIONS"
+            header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, MCP-Protocol-Version, Mcp-Session-Id"
+            reverse_proxy {$UPSTREAM} {
+              flush_interval -1
+            }
+          }
+        }
+        CADDYFILE
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile

@@ -58,6 +58,102 @@ test("health stays public and everything else requires the bearer", async () => 
   expect(await status.json()).toMatchObject({ linked: false, email: null });
 });
 
+test("unknown and well-known probe paths return 404 without a token", async () => {
+  const server = await app();
+  for (const path of [
+    "/.well-known/oauth-authorization-server",
+    "/.well-known/oauth-protected-resource/mcp",
+    "/nope",
+  ]) {
+    const response = await server.fetch(new Request(`http://127.0.0.1:8080${path}`));
+    expect(response.status, path).toBe(404);
+  }
+});
+
+test("MCP CORS preflight passes without auth and MCP responses carry CORS headers", async () => {
+  const server = await app();
+  const preflight = await server.fetch(
+    new Request("http://127.0.0.1:8080/mcp", {
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://app.example.test",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "authorization, content-type, mcp-protocol-version",
+      },
+    }),
+  );
+  expect(preflight.status).toBe(204);
+  expect(preflight.headers.get("access-control-allow-origin")).toBe("https://app.example.test");
+  expect(preflight.headers.get("access-control-allow-headers")).toContain("Authorization");
+  expect(preflight.headers.get("access-control-allow-methods")).toContain("OPTIONS");
+  const initialize = await server.fetch(
+    new Request("http://127.0.0.1:8080/mcp", {
+      method: "POST",
+      headers: auth({
+        Origin: "https://app.example.test",
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      }),
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "test", version: "1" } },
+      }),
+    }),
+  );
+  expect(initialize.status).toBe(200);
+  expect(initialize.headers.get("access-control-allow-origin")).toBe("https://app.example.test");
+  expect(sseJson(await initialize.text()).result.serverInfo).toEqual({ name: "fitia", version: VERSION });
+});
+
+test("empty token disables the local bearer gate for the proxy", async () => {
+  const server = createSelfhostApp({
+    store: memory({ version: 1, idToken: fresh, refreshToken: "r", uid: "u", email: null }),
+    mcpToken: "",
+  });
+  const response = await server.fetch(
+    new Request("http://127.0.0.1:8080/mcp", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "test", version: "1" } },
+      }),
+    }),
+  );
+  expect(response.status).toBe(200);
+});
+
+test("MCP accepts the token bare, with Bearer, or from the access cookie", async () => {
+  const server = await app(memory({ version: 1, idToken: fresh, refreshToken: "r", uid: "u", email: null }));
+  const body = JSON.stringify({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "test", version: "1" } },
+  });
+  for (const authorization of [mcpToken, `Bearer ${mcpToken}`, `bearer ${mcpToken}`]) {
+    const response = await server.fetch(
+      new Request("http://127.0.0.1:8080/mcp", {
+        method: "POST",
+        headers: {
+          Authorization: authorization,
+          "Content-Type": "application/json",
+          Accept: "application/json, text/event-stream",
+        },
+        body,
+      }),
+    );
+    expect(response.status).toBe(200);
+  }
+});
+
 test("portal shows a token gate until unlocked", async () => {
   const server = await app();
   const gated = await server.fetch(new Request("http://127.0.0.1:8080/"));
