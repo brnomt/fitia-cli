@@ -108,12 +108,15 @@ export class FitiaClient {
     // Only a server verified identity may select the profile path.
     const account = await this.account();
     const data = object(await this.get(`/api/profiles/${encodeURIComponent(account.id)}`));
+    // Fitia's profile endpoint no longer includes isPremium; ask the dedicated premium endpoint instead.
+    // A present but malformed isPremium is still rejected.
+    const isPremium = data.isPremium === undefined ? (await this.premium()).isPremium : boolean(data.isPremium);
     return {
       id: account.id,
       email: optionalString(data.email),
       name: optionalString(data.name),
       country: optionalString(data.country),
-      isPremium: boolean(data.isPremium),
+      isPremium,
       useCase: optionalString(data.useCase),
       goal: optionalString(data.goal),
       sex: optionalString(data.sex),
